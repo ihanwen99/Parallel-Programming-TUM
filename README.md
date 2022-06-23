@@ -8,3 +8,7 @@ Week1 - Pre Computing for Speeding Up
 Week2 - `thread & mutex`
 
 Week3 - `OpenMP`
+
+
+
+Week7 - `Intel Intrinsics`
