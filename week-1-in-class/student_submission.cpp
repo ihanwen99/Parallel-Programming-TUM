@@ -20,7 +20,6 @@ void decrypt_message(uint8_t *decryptedMessage, uint8_t *keys, uint8_t *values)
     {
         decryptedMessage[i] = dict[decryptedMessage[i]];
     }
-
     // End of TODO
 }
 

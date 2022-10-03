@@ -33,16 +33,15 @@ void decrypt_message(uint8_t *decryptedMessage, uint8_t *keys, uint8_t *values)
 {
     // TODO: modify the following code to improve the efficiency
     int dict[UNIQUE_CHARACTERS];
-    for(unsigned int i=0;i<UNIQUE_CHARACTERS;++i){
-        uint8_t key=keys[i];
-        dict[key]=values[i];
+    for (unsigned int i = 0; i < UNIQUE_CHARACTERS; i++)
+    {
+        uint8_t key = keys[i];
+        dict[key] = values[i];
     }
-
-    for(unsigned int i=0;i<STRING_LEN;++i){
-        decryptedMessage[i]=dict[decryptedMessage[i]];
+    for (unsigned int i = 0; i < STRING_LEN; i++)
+    {
+        decryptedMessage[i] = dict[decryptedMessage[i]];
     }
-
-
     // End of TODO
 }
 ```
