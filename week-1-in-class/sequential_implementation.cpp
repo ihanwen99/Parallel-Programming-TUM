@@ -1,70 +1,186 @@
-#include "Utility.h"
+#include <cstring>
+#include <iostream>
 #include <chrono>
 
-/*
- * Our message is encrypted/decrypted NUM_ITERATIONS times (in main).
- * At each iteration one layer is decrypted using this function and the result is stored in the same decryptedMessage array.
- * In order to decrypt a message, the location of each character from decryptedMessage in the keys array is found.
- * The decrypted character is located at the same index in the values array (as in keys).
+#include "vv-aes.h"
+using namespace std;
+using namespace chrono;
+
+/**
+ * This function takes the characters stored in the 6x6 message array and substitutes each character for the
+ * corresponding replacement as specified in the originalCharacter and substitutedCharacter array.
+ * This corresponds to step 2.1 in the VV-AES explanation.
  */
-void decrypt_message(uint8_t *decryptedMessage, uint8_t *keys, uint8_t *values)
+void substitute_bytes()
 {
-    // TODO: modify the following code to improve the efficiency
-    int index = -1;
-    for (unsigned int i = 0; i < STRING_LEN; ++i)
+    // For each byte in the message
+    for (int column = 0; column < MESSAGE_BLOCK_SIZE; column++)
     {
-        for (int k = 0; k < UNIQUE_CHARACTERS; ++k)
+        for (int row = 0; row < MESSAGE_BLOCK_SIZE; row++)
         {
-            if (decryptedMessage[i] == keys[k])
+            // Search for the byte in the original character list
+            // and replace it with corresponding the element in the substituted character list
+            int index = -1;
+
+            // for-loop的查找可以优化
+            for (int i = 0; i < UNIQUE_CHARACTERS; i++)
             {
-                index = k;
+                if (originalCharacter[i] == message[row][column])
+                {
+                    index = i;
+                }
             }
+
+            //把每个位置都换成 替换列表里面的元素
+            message[row][column] = substitutedCharacter[index];
         }
-
-        decryptedMessage[i] = values[index];
     }
-
-    // End of TODO
 }
 
-// You don't need to modify the main function
+/*
+ * This function shifts (rotates) a row in the message array by one place to the left.
+ * @param row The row which to shift.
+ */
+void shift_row(int row)
+{
+    // This does a shift (really a rotate) of a row, copying each element to the left
+    auto *newRow = (unsigned char *)(malloc(MESSAGE_BLOCK_SIZE));
+
+    //这个循环明显可以优化
+    for (int i = 0; i < MESSAGE_BLOCK_SIZE; ++i)
+    {
+        newRow[i % MESSAGE_BLOCK_SIZE] = message[row][(i + 1) % MESSAGE_BLOCK_SIZE];
+    }
+
+    memcpy(message[row], newRow, MESSAGE_BLOCK_SIZE);
+    free(newRow);
+}
+
+/*
+ * This function shifts each row by the number of places it is meant to be shifted according to the AES specification.
+ * Row zero is shifted by zero places. Row one by one, etc.
+ * This corresponds to step 2.2 in the VV-AES explanation.
+ */
+void shift_rows()
+{ // 外层的大函数
+    // Shift each row, where the row index corresponds to how many columns the data is shifted.
+    for (int row = 0; row < MESSAGE_BLOCK_SIZE; ++row)
+    {
+        for (int shifts = 0; shifts < row; ++shifts)
+        {
+            shift_row(row);
+        }
+    }
+}
+
+/*
+ * This function calculates x^n for polynomial evaluation.
+ */
+int power(int x, int n)
+{
+    // Calculates x^n
+    if (n == 0)
+    {
+        return 1;
+    }
+    return x * power(x, n - 1);
+}
+
+/*
+ * This function evaluates four different polynomials, one for each row in the column.
+ * Each polynomial evaluated is of the form
+ * m'[row, column] = c[r][3] m[3][column]^4 + c[r][2] m[2][column]^3 + c[r][1] m[1][column]^2 + c[r][0]m[0][column]^1
+ * where m' is the new message value, c[r] is an array of polynomial coefficients for the current result row (each
+ * result row gets a different polynomial), and m is the current message value.
+ *
+ */
+void multiply_with_polynomial(int column)
+{
+    for (int row = 0; row < MESSAGE_BLOCK_SIZE; ++row)
+    {
+        int result = 0;
+        // 这个循环可以优化
+        for (int degree = 0; degree < MESSAGE_BLOCK_SIZE; degree++)
+        {
+            result += polynomialCoefficients[row][degree] * power(message[degree][column], degree + 1);
+        }
+        message[row][column] = result;
+    }
+}
+
+/*
+ * For each column, mix the values by evaluating them as parameters of multiple polynomials.
+ * This corresponds to step 2.3 in the VV-AES explanation.
+ */
+void mix_columns()
+{
+    for (int column = 0; column < MESSAGE_BLOCK_SIZE; ++column)
+    {
+        multiply_with_polynomial(column);
+    }
+}
+
+/*
+ * Add the current key to the message using the XOR operation.
+ */
+
+//直接矩阵操作会不会更快
+void add_key()
+{
+    for (int column = 0; column < MESSAGE_BLOCK_SIZE; column++)
+    {
+        for (int row = 0; row < MESSAGE_BLOCK_SIZE; ++row)
+        {
+            // ^ == XOR
+            message[row][column] = message[row][column] ^ key[row][column];
+        }
+    }
+}
+
+/*
+ * Your main encryption routine.
+ */
 int main()
 {
-    //This is a container for the decrypted message
-    uint8_t decryptedMessage[STRING_LEN];
+    // Receive the problem from the system.
+    readInput();
+    cout << "Computing is Start" << endl;
+    auto start = system_clock::now();
 
-    /*
-    * This is the source list of characters. If you wish to translate a character, find its index in this list. The
-    * corresponding output character resides at the same index in the substituted character list.
-    */
-    uint8_t keys[256];
-
-    /*
-    * This is the output list of characters. If you wish to translate a character, find its index in the original list.
-    * The corresponding output character resides at the same index in this list.
-    */
-    uint8_t values[256];
-
-
-    unsigned int seed = readInput();
-
-    /*
-     * If you want to test the running time locally, uncomment the lines below.
-     * IMPORTANT: THOSE LINES SHOULD BE COMMENTED OUT BEFORE SUBMISSION, i.e. the last output should be from output_message.
-    */
-    //std::chrono::high_resolution_clock::time_point start, stop;
-    //start = std::chrono::high_resolution_clock::now();
-    
-    generate_test(decryptedMessage, keys, values, seed);
-
+    // For extra security (and because Varys wasn't able to find enough test messages to keep you occupied) each message
+    // is put through VV-AES lots of times. If we can't stop the adverse Maesters from decrypting our highly secure
+    // encryption scheme, we can at least slow them down.
     for (int i = 0; i < NUM_ITERATIONS; i++)
     {
-        decrypt_message(decryptedMessage, keys, values);
+        // For each message, we use a predetermined key (e.g. the password). In our case, its just pseudo random.
+        set_next_key();
+
+        // First, we add the key to the message once:
+        add_key();
+
+        // We do 9+1 rounds for 128 bit keys
+        for (int round = 0; round < NUM_ROUNDS; round++)
+        {
+            // In each round, we use a different key derived from the original (refer to the key schedule).
+            set_next_key();
+
+            // These are the four steps described in the slides.
+            // 那么也就是我们的优化目标
+            substitute_bytes();
+            shift_rows();
+            mix_columns();
+            add_key();
+        }
+        // Final round
+        substitute_bytes();
+        shift_rows();
+        add_key();
     }
-    
-    output_message(decryptedMessage);
-    
-    //stop = std::chrono::high_resolution_clock::now();
-    //int time_in_microseconds = std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count();
-    //std::cout << std::dec << "Operations executed in " << time_in_microseconds << " microseconds" << std::endl;
+
+    // Submit our solution back to the system.
+    writeOutput();
+    auto end = system_clock::now();
+    auto duration = duration_cast<microseconds>(end - start);
+    cout << "All Process is : " << double(duration.count()) * microseconds::period::num / microseconds::period::den << "s" << endl;
+    return 0;
 }
