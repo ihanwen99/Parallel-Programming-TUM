@@ -29,8 +29,20 @@ make
 
 ```cpp
 // TODO: uncomment once you added the correct headers
+int THREAD_NUM = 32;
 std::thread threads[THREAD_NUM];
-std::mutex mutex;
+
+for (int thread_id = 0; thread_id < THREAD_NUM; thread_id++)
+{
+  int each = width / THREAD_NUM;
+  int low = each * thread_id;
+  threads[thread_id] = std::thread(working_thread, low, low + each);
+}
+
+for (int thread_id = 0; thread_id < THREAD_NUM; thread_id++)
+{
+  threads[thread_id].join();
+}
 ```
 
 2. 使用锁保护 多个线程都能操作的变量
@@ -38,6 +50,8 @@ std::mutex mutex;
 ```cpp
 // ######################## TODO: Copy task id from the global variable and increment it 
 // ######################## DO NOT FORGET TO LOCK AND UNLOCK! ########################
+std::mutex mutex;
+
 mutex.lock();
 local_task_id=task_id++;
 mutex.unlock();
