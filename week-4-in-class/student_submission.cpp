@@ -39,18 +39,19 @@ Integer mulInteger(const Integer &a, const Integer &b)
     Integer result{0};
 #pragma omp parallel
     {
-        Integer partial_result{0};
-#pragma omp single {
-        for (size_t i = 0; i < a.size(); i++)
+        partial_result = {0};
+#pragma omp single
         {
+            for (size_t i = 0; i < a.size(); i++)
+            {
 #pragma omp task
-            Integer partial_result = addInteger(partial_result, mulShiftedInteger(b, a[i], i));
+                partial_result = addInteger(partial_result, mulShiftedInteger(b, a[i], i));
+            }
         }
-    }
 
 #pragma omp critical
-    result = addInteger(result, partial_result);
-
+        result = addInteger(result, partial_result);
+    }
     return result;
 }
 
