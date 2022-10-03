@@ -29,7 +29,7 @@ make
 
 ```cpp
 // TODO: uncomment once you added the correct headers
-int THREAD_NUM = 32;
+#define THREAD_NUM 32
 std::thread threads[THREAD_NUM];
 
 for (int thread_id = 0; thread_id < THREAD_NUM; thread_id++)
