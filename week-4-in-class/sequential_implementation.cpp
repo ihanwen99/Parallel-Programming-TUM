@@ -8,7 +8,6 @@
 // comment this line before submission
 #define PRINT_TIME 1
 
-
 /* the mechanism of this function
  *       b
  *     X a
@@ -23,9 +22,9 @@ Integer mulInteger(const Integer &a, const Integer &b)
     for (size_t i = 0; i < a.size(); i++)
     {
         auto tmp = addInteger(result, mulShiftedInteger(b, a[i], i));
-        result = tmp; 
+        result = tmp;
     }
-    
+
     return result;
 }
 
