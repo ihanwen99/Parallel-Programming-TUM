@@ -1,8 +1,7 @@
 CXX = c++
-# CXX_FLAGS = --std=c++17 -Wall -Wextra -march=native -O3 -g
-CXX_FLAGS = --std=c++17 -Wall -Wextra -O3 -g
+CXX_FLAGS = --std=c++17 -Wall -Wextra -march=native -O3 -g
 
-all: env_file sequential_implementation student_submission reference_implementation
+all: env_file sequential_implementation student_submission
 
 sequential_implementation: Utility.h sequential_implementation.cpp
 	$(CXX) $(CXX_FLAGS) -o sequential_implementation sequential_implementation.cpp 

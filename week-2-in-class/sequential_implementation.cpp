@@ -28,22 +28,22 @@ void compute_vel(unsigned int pos, double current_vel, double *target_vel)
     double x = std::fmod(std::pow(current_vel, pos % NUM_DATAPOINTS), MAX_X);
     /*
      * You do not have to modify or understand this code.
-     * But in your free time, if you manage to find an optimization to this algorithm (maybe another algorithm?), 
+     * But in your free time, if you manage to find an optimization to this algorithm (maybe another algorithm?),
      * you will get our personal appreciation.
-     * This algorithm is not relevant for the exam and is not part of the course material. 
+     * This algorithm is not relevant for the exam and is not part of the course material.
      */
     double p[NUM_DATAPOINTS][NUM_DATAPOINTS];
 
-    for(int i = 0; i < NUM_DATAPOINTS; i++)
+    for (int i = 0; i < NUM_DATAPOINTS; i++)
     {
-        p[i][0] =  datapoints[i][1];
+        p[i][0] = datapoints[i][1];
     }
 
-    for(int k = 1; k < NUM_DATAPOINTS; k++)
+    for (int k = 1; k < NUM_DATAPOINTS; k++)
     {
-        for(int i = 0; i < NUM_DATAPOINTS - k; i++)
+        for (int i = 0; i < NUM_DATAPOINTS - k; i++)
         {
-            p[i][k] = p[i][k - 1] + ((x - datapoints[i][0])/(datapoints[i + k][0] - datapoints[i][0])) * (p[i + 1][k - 1] - p[i][k - 1]);
+            p[i][k] = p[i][k - 1] + ((x - datapoints[i][0]) / (datapoints[i + k][0] - datapoints[i][0])) * (p[i + 1][k - 1] - p[i][k - 1]);
         }
     }
 

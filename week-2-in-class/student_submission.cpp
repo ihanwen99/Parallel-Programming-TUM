@@ -22,9 +22,9 @@ void compute_vel(unsigned int pos, double current_vel, double *target_vel)
     double x = std::fmod(std::pow(current_vel, pos % NUM_DATAPOINTS), MAX_X);
     /*
      * You do not have to modify or understand this code.
-     * But in your free time, if you manage to find an optimization to this algorithm (maybe another algorithm?), 
+     * But in your free time, if you manage to find an optimization to this algorithm (maybe another algorithm?),
      * you will get our personal appreciation.
-     * This algorithm is not relevant for the exam and is not part of the course material. 
+     * This algorithm is not relevant for the exam and is not part of the course material.
      */
     double p[NUM_DATAPOINTS][NUM_DATAPOINTS];
 
@@ -62,7 +62,6 @@ void update_rock_pos(int rock_id, unsigned int local_rocks_pos[][2], double loca
 
 void working_thread(int &buffer)
 {
-
     // define rocks' pos and vel arrays for local thread
     unsigned int local_rocks_pos[ROCKS_NUM / THREAD_NUM][2];
     double local_rocks_vel[ROCKS_NUM / THREAD_NUM][2];
@@ -72,7 +71,7 @@ void working_thread(int &buffer)
     // ######################## TODO: Copy task id from the global variable and increment it ########################
     // ######################## DO NOT FORGET TO LOCK AND UNLOCK! ########################
     mutex.lock();
-    local_task_id=task_id++;
+    local_task_id = task_id++;
     mutex.unlock();
     // ######################## TODO END ########################
 
@@ -99,7 +98,7 @@ void working_thread(int &buffer)
         }
     }
 
-    //return the value to the buffer 
+    // return the value to the buffer
     buffer = local_crashed_count;
 }
 
@@ -111,14 +110,14 @@ int main()
 #endif
     generate_test(rocks_pos, rocks_vel, datapoints, seed);
     unsigned int crashed_count = 0;
-    //This is a buffer for receiving the output
+    // This is a buffer for receiving the output
     int buffer[THREAD_NUM];
 
     task_id = 0;
     for (int thread_id = 0; thread_id < THREAD_NUM; thread_id++)
     {
         // ######################## TODO: create thread to call the working_thread function and pass the buffer element as argument ########################
-        threads[thread_id]=std::thread(working_thread,std::ref(buffer[thread_id]));
+        threads[thread_id] = std::thread(working_thread, std::ref(buffer[thread_id]));
         // ######################## TODO END ########################
     }
 
@@ -126,11 +125,9 @@ int main()
     {
         // ######################## TODO: join thread to terminate thread, get the returned value from the buffer and add it to the (total) crashed_count ########################
         threads[thread_id].join();
-        crashed_count+=buffer[thread_id];
-
+        crashed_count += buffer[thread_id];
         // ######################## TODO END ########################
     }
-        
 
     outputResult(crashed_count);
 #ifdef PRINT_TIME
