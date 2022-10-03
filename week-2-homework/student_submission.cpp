@@ -74,6 +74,7 @@ int width = WIDTH;
 int height = HEIGHT;
 int samples = NUM_SAMPLES;
 int depth = DEPTH;
+
 Vector3 checksum(0, 0, 0);
 const auto aspect_ratio = (float)width / height;
 Camera camera(Vector3(0, 1, 1), Vector3(0, 0, -1), Vector3(0, 1, 0), aspect_ratio, 90, 0.0f, 1.5f);
@@ -82,7 +83,7 @@ std::mutex mtx;
 std::vector<Sphere> spheres;
 auto image_data = static_cast<int *>(malloc(width * height * sizeof(int) * 3));
 
-void working_thread( int low, int high)
+void working_thread(int low, int high)
 {
     int width = WIDTH;
     int height = HEIGHT;
@@ -93,7 +94,6 @@ void working_thread( int low, int high)
     {
         for (int y = height - 1; y >= 0; y--)
         {
-
             Vector3 pixel_color(0, 0, 0);
             for (int s = 0; s < samples; s++)
             {
@@ -102,6 +102,7 @@ void working_thread( int low, int high)
                 auto r = get_camera_ray(camera, u, v);
                 pixel_color += trace_ray(r, spheres, depth);
             }
+
             mtx.lock();
             auto output_color = write_color(checksum, pixel_color, samples);
             mtx.unlock();
@@ -219,7 +220,7 @@ int main(int argc, char **argv)
     {
         int each = width / THREAD_NUM;
         int low = each * thread_id;
-        threads[thread_id] = std::thread(working_thread,low, (low + each));
+        threads[thread_id] = std::thread(working_thread, low, low + each);
     }
 
     for (int thread_id = 0; thread_id < THREAD_NUM; thread_id++)

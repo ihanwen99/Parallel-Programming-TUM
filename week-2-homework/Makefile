@@ -1,5 +1,5 @@
 CXX = c++
-CXX_FLAGS = --std=c++17 -Wall -Wextra -O3 -lm
+CXX_FLAGS = --std=c++17 -Wall -Wextra -march=native -O3 -lm
 
 all: sequential_implementation student_submission
 
