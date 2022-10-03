@@ -27,18 +27,18 @@
 3. 创建多线程工作函数
 
    ```cpp
-   void working_thread( int low, int high)
+   void kernel(int low, int high)
    {
        int width = WIDTH;
        int height = HEIGHT;
        int samples = NUM_SAMPLES;
        int depth = DEPTH;
+       Vector3 local_checksum(0, 0, 0);
    
        for (int x = low; x < high; x++)
        {
            for (int y = height - 1; y >= 0; y--)
            {
-   
                Vector3 pixel_color(0, 0, 0);
                for (int s = 0; s < samples; s++)
                {
@@ -47,9 +47,8 @@
                    auto r = get_camera_ray(camera, u, v);
                    pixel_color += trace_ray(r, spheres, depth);
                }
-               mtx.lock();
-               auto output_color = write_color(checksum, pixel_color, samples);
-               mtx.unlock();
+   
+               auto output_color = write_color(local_checksum, pixel_color, samples);
    
                int pos = ((height - 1 - y) * width + x) * 3;
                image_data[pos] = output_color.r;
@@ -57,6 +56,10 @@
                image_data[pos + 2] = output_color.b;
            }
        }
+   
+       mtx.lock();
+       checksum += local_checksum;
+       mtx.unlock();
    }
    ```
 
@@ -66,14 +69,15 @@
    - 等待线程执行完成
 
    ```cpp
-   int THREAD_NUM = 32;
+   #define THREAD_NUM 32
+   
    std::thread threads[THREAD_NUM];
    
    for (int thread_id = 0; thread_id < THREAD_NUM; thread_id++)
    {
      int each = width / THREAD_NUM;
      int low = each * thread_id;
-     threads[thread_id] = std::thread(working_thread,low, (low + each));
+     threads[thread_id] = std::thread(kernel, low, (low + each));
    }
    
    for (int thread_id = 0; thread_id < THREAD_NUM; thread_id++)
