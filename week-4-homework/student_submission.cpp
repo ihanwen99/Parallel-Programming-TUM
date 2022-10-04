@@ -16,14 +16,13 @@ void simulate_waves(ProblemData &problemData)
     float(&lastWaveIntensity)[MAP_SIZE][MAP_SIZE] = *problemData.lastWaveIntensity;
     float(&currentWaveIntensity)[MAP_SIZE][MAP_SIZE] = *problemData.currentWaveIntensity;
 
-#pragma omp parallel for collapse(2)
+#pragma omp parallel for schedule(dynamic)
     for (int x = 1; x < MAP_SIZE - 1; ++x)
     {
         for (int y = 1; y < MAP_SIZE - 1; ++y)
         {
 
             // Simulate some waves
-
             // The acceleration is the relative difference between the current point and the last.
             float acceleration = ATTACK_FACTOR * (lastWaveIntensity[x][y - 1] + lastWaveIntensity[x - 1][y] + lastWaveIntensity[x + 1][y] + lastWaveIntensity[x][y + 1]) - (4 * ATTACK_FACTOR - 1) * lastWaveIntensity[x][y] - secondLastWaveIntensity[x][y];
 
@@ -74,9 +73,8 @@ bool findPathWithExhaustiveSearch(ProblemData &problemData, int timestep,
         }
     }
 
-    // omp_set_dynamic(0);
     // Do the actual path finding.
-#pragma omp parallel for schedule(static)
+#pragma omp parallel for schedule(dynamic)
     for (int x = 0; x < MAP_SIZE; ++x)
     {
         for (int y = 0; y < MAP_SIZE; ++y)
@@ -124,16 +122,13 @@ bool findPathWithExhaustiveSearch(ProblemData &problemData, int timestep,
                 }
 
                 currentShipPositions[neighborPosition.x][neighborPosition.y] = true;
-                // flag += add;
-                // std::cout << flag << std::endl;
-                // numPossiblePositions++;
             }
         }
     }
     if (flag == 1)
         return true;
 
-#pragma omp parallel for schedule(static)
+#pragma omp parallel for schedule(dynamic)
     for (int x = 0; x < MAP_SIZE; ++x)
     {
         for (int y = 0; y < MAP_SIZE; ++y)
