@@ -78,13 +78,10 @@ int main(int argc, char **argv)
         {
             // send lowest row in block to process with rank 1
             MPI_Send(old_wave_map + (end_row - 1) * MAP_WIDTH, MAP_WIDTH, MPI_FLOAT, 1, 0, MPI_COMM_WORLD);
-
             // receive upper ghost layer from process with rank size-1
             MPI_Recv(old_wave_map + (MAP_HEIGHT - 1) * MAP_WIDTH, MAP_WIDTH, MPI_FLOAT, size - 1, 0, MPI_COMM_WORLD, nullptr);
-
             // send uppermost row in block to process with rank size-1
             MPI_Send(old_wave_map + st_row * MAP_WIDTH, MAP_WIDTH, MPI_FLOAT, size - 1, 1, MPI_COMM_WORLD);
-
             // receive lower ghost layer from process with rank 1
             MPI_Recv(old_wave_map + end_row * MAP_WIDTH, MAP_WIDTH, MPI_FLOAT, 1, 1, MPI_COMM_WORLD, nullptr);
         }
