@@ -1,32 +1,108 @@
-//
-// Created by Hanwen on 05/07/2022.
-//
 #include <cstdlib>
 #include <cstdio>
 #include <cstring>
 #include "life.h"
 #include "Utility.h"
 #include "VideoOutput.h"
+#include <random>
+
 #include <mpi.h>
+#include <omp.h>
 #include <iostream>
+
 #define CODE_VERSION 1
+
+std::minstd_rand randomEngine_new;
+uint_fast32_t cachedValue_new;
+uint_fast32_t bitMask_new = 0;
+
+inline bool generateBit_new()
+{
+    if (!bitMask_new)
+    {
+        cachedValue_new = randomEngine_new();
+        bitMask_new = 1;
+    }
+    bool value = cachedValue_new & bitMask_new;
+    bitMask_new = bitMask_new << 1;
+    return value;
+}
+
+void seedGenerator_new(unsigned long long seed)
+{
+    randomEngine_new = std::minstd_rand(seed);
+}
+
+// New Design
+// Generate Data Here and Propagate to Others
+void readProblemFromInput(ProblemData &data, int rank)
+{
+    auto &grid = *data.readGrid;
+    if (rank == 0) // Same as Original One, Only change to "rank==0"
+    {
+        unsigned int seed = 0;
+        std::cout << "READY" << std::endl;
+        std::cin >> seed;
+
+        std::cout << "Using seed " << seed << std::endl;
+        if (seed == 0)
+        {
+            std::cout << "Warning: default value 0 used as seed." << std::endl;
+        }
+
+        // "random" numbers
+        seedGenerator_new(seed);
+
+        for (int i = 0; i < GRID_SIZE * GRID_SIZE; i += 1)
+        {
+            *(grid[0] + i) = generateBit_new();
+        }
+    }
+
+    MPI_Bcast(grid, (GRID_SIZE) * (GRID_SIZE), MPI_CXX_BOOL, 0, MPI_COMM_WORLD);
+
+    if (rank == 2)
+    {
+        int count_1 = 0;
+        for (int i = 1; i < GRID_SIZE - 1; i++)
+        {
+            for (int j = 1; j < GRID_SIZE - 1; j++)
+            {
+                if (grid[i][j] == 1)
+                {
+                    count_1++;
+                }
+            }
+        }
+        std::cout << "Iteration 0"
+                  << ": " << count_1 << " cells alive." << std::endl;
+    }
+}
+
 /*
   Apply the game of life rules on a Torus --> grid contains shadow rows and columns
   to simplify application of rules i.e. grid actually ranges from grid [ 1.. height - 2 ][ 1 .. width - 2]
 */
-void evolve(ProblemData &problemData)
+int evolve(ProblemData &problemData, int st_row, int end_row)
 {
     auto &grid = *problemData.readGrid;
     auto &writeGrid = *problemData.writeGrid;
+    int survivor = 0;
     // For each cell
-    for (int i = 1; i < GRID_SIZE - 1; i++)
+    for (int i = st_row; i < end_row; i++)
     {
         for (int j = 1; j < GRID_SIZE - 1; j++)
         {
+            // FIXME  || i == GRID_SIZE
+            if (i == 0 || i == (GRID_SIZE - 1))
+            {
+                continue;
+            }
             // Calculate the number of neighbors
             int sum = grid[i - 1][j - 1] + grid[i - 1][j] + grid[i - 1][j + 1] +
                       grid[i][j - 1] + grid[i][j + 1] +
                       grid[i + 1][j - 1] + grid[i + 1][j] + grid[i + 1][j + 1];
+
             if (!grid[i][j])
             {
                 // If a cell is dead, it can start living by reproduction or stay dead
@@ -54,46 +130,89 @@ void evolve(ProblemData &problemData)
                     writeGrid[i][j] = false;
                 }
             }
+
+            if (writeGrid[i][j] == 1)
+            {
+                survivor += 1;
+            }
         }
     }
+    return survivor;
 }
+
 /*
   Copies data from the inner part of the grid to
   shadow (padding) rows and columns to transform the grid into a torus.
 */
-void copy_edges(bool (&grid)[GRID_SIZE][GRID_SIZE])
+void copy_edges(bool (&grid)[GRID_SIZE][GRID_SIZE], int rank, int size, int st_row, int end_row)
 {
-    // Copy data to the boundaries
-    for (int i = 1; i < GRID_SIZE - 1; i++)
+    for (int i = st_row; i < end_row; i++)
     {
+        if (i == 0 || i == (GRID_SIZE - 1))
+        {
+            continue;
+        }
         // join rows together
         grid[i][0] = grid[i][GRID_SIZE - 2];
         grid[i][GRID_SIZE - 1] = grid[i][1];
     }
-    for (int j = 1; j < GRID_SIZE - 1; j++)
+
+    if (rank == 0)
     {
-        // join columns together
-        grid[0][j] = grid[GRID_SIZE - 2][j];
-        grid[GRID_SIZE - 1][j] = grid[1][j];
+        bool buf_send_top[GRID_SIZE];
+        for (int j = 0; j < GRID_SIZE; ++j)
+        {
+            buf_send_top[j] = grid[1][j];
+        }
+        buf_send_top[0] = grid[1][GRID_SIZE - 2];
+        buf_send_top[GRID_SIZE - 1] = grid[1][1];
+
+        MPI_Send(&grid[end_row - 1][0], GRID_SIZE, MPI_CXX_BOOL, 1, 0, MPI_COMM_WORLD);
+        MPI_Recv(&grid[end_row][0], GRID_SIZE, MPI_CXX_BOOL, 1, 1, MPI_COMM_WORLD, nullptr);
+        MPI_Send(&buf_send_top, GRID_SIZE, MPI_CXX_BOOL, size - 1, 2, MPI_COMM_WORLD);
+        MPI_Recv(&grid[0][0], GRID_SIZE, MPI_CXX_BOOL, size - 1, 3, MPI_COMM_WORLD, nullptr);
     }
-    // Fix corners
-    grid[0][0] = grid[GRID_SIZE - 2][GRID_SIZE - 2];
-    grid[GRID_SIZE - 1][GRID_SIZE - 1] = grid[1][1];
-    grid[0][GRID_SIZE - 1] = grid[GRID_SIZE - 2][1];
-    grid[GRID_SIZE - 1][0] = grid[1][GRID_SIZE - 2];
+    else if (rank == size - 1)
+    {
+        bool buf_send_down[GRID_SIZE];
+        for (int j = 0; j < GRID_SIZE; ++j)
+        {
+            buf_send_down[j] = grid[GRID_SIZE - 2][j];
+        }
+
+        buf_send_down[0] = grid[GRID_SIZE - 2][GRID_SIZE - 2];
+        buf_send_down[GRID_SIZE - 1] = grid[GRID_SIZE - 2][1];
+
+        MPI_Recv(&grid[(st_row)-1][0], GRID_SIZE, MPI_CXX_BOOL, size - 2, 0, MPI_COMM_WORLD, nullptr);
+        MPI_Send(&grid[st_row][0], GRID_SIZE, MPI_CXX_BOOL, size - 2, 1, MPI_COMM_WORLD);
+        MPI_Recv(&grid[GRID_SIZE - 1][0], GRID_SIZE, MPI_CXX_BOOL, 0, 2, MPI_COMM_WORLD, nullptr);
+        MPI_Send(&buf_send_down, GRID_SIZE, MPI_CXX_BOOL, 0, 3, MPI_COMM_WORLD);
+    }
+    else // Inside Nodes - Attention the Order!
+    {
+        MPI_Send(&grid[end_row - 1][0], GRID_SIZE, MPI_CXX_BOOL, rank + 1, 0, MPI_COMM_WORLD);
+        MPI_Send(&grid[st_row][0], GRID_SIZE, MPI_CXX_BOOL, rank - 1, 1, MPI_COMM_WORLD);
+        MPI_Recv(&grid[end_row][0], GRID_SIZE, MPI_CXX_BOOL, rank + 1, 1, MPI_COMM_WORLD, nullptr);
+        MPI_Recv(&grid[(st_row - 1)][0], GRID_SIZE, MPI_CXX_BOOL, rank - 1, 0, MPI_COMM_WORLD, nullptr);
+    }
 }
 
 int main(int argc, char **argv)
 {
-    MPI_Init(&argc, &argv);
-    int rank;
-    int size;
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    MPI_Init(&argc, &argv); /* starts MPI */
+
+    int rank, size;
+
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank); /* process id */
+    MPI_Comm_size(MPI_COMM_WORLD, &size); /* number processes */
 
     auto *problemData = new ProblemData;
-    // As with Jack Sparrow's exercise, this needs FFMPEG (new and improved: this now works with more video players).
-    // As an alternative, you can write individual png files to take a look at the data.
+    int *intermediate = new int[NUM_SIMULATION_STEPS + 1];
+
+    // Utility_new hanwen;
+    // hanwen.readProblemFromInput(*problemData, rank);
+    readProblemFromInput(*problemData, rank);
 
     // the number of rows calculated by a process
     int proc_rows = GRID_SIZE / size;
@@ -101,56 +220,36 @@ int main(int argc, char **argv)
     int st_row = rank * proc_rows;
     // the end row(not included) in this process
     int end_row = (rank + 1) * proc_rows;
-    if (rank == 0)
-    {
-        std::cout << "GRID_SIZE: " << GRID_SIZE << "\tproc_rows: " << proc_rows << std::endl;
-        Utility::readProblemFromInput(CODE_VERSION, *problemData);
-    }
-    // MPI_Bcast(*problemData->readGrid, (GRID_SIZE) * (GRID_SIZE), MPI_C_BOOL, 0, MPI_COMM_WORLD);
 
-    // TODO@Students: This is the main simulation. Parallelize it using MPI.
     for (int iteration = 0; iteration < NUM_SIMULATION_STEPS; ++iteration)
     {
-        copy_edges(*problemData->readGrid);
-        MPI_Bcast(*problemData->readGrid, (GRID_SIZE) * (GRID_SIZE), MPI_C_BOOL, 0, MPI_COMM_WORLD);
+        copy_edges(*problemData->readGrid, rank, size, st_row, end_row);
+        intermediate[iteration] = evolve(*problemData, st_row, end_row);
 
-        if (rank == 0)
+        problemData->swapGrids();
+
+        int inter_reduce = 0;
+        MPI_Reduce(intermediate + iteration, &inter_reduce, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+
+        if (rank == 0) // Store For Output
         {
-            // send lowest row in block to process with rank 1
-            MPI_Send(*problemData->readGrid + (end_row - 1) * GRID_SIZE, GRID_SIZE, MPI_FLOAT, 1, 0, MPI_COMM_WORLD);
-
-            // receive upper ghost layer from process with rank size-1
-            MPI_Recv(*problemData->readGrid + (GRID_SIZE - 1) * GRID_SIZE, GRID_SIZE, MPI_FLOAT, size - 1, 0, MPI_COMM_WORLD, nullptr);
-
-            // send uppermost row in block to process with rank size-1
-            MPI_Send(*problemData->readGrid + st_row * GRID_SIZE, GRID_SIZE, MPI_FLOAT, size - 1, 1, MPI_COMM_WORLD);
-
-            // receive lower ghost layer from process with rank 1
-            MPI_Recv(*problemData->readGrid + end_row * GRID_SIZE, GRID_SIZE, MPI_FLOAT, 1, 1, MPI_COMM_WORLD, nullptr);
-
-            if (iteration % SOLUTION_REPORT_INTERVAL == 0)
+            intermediate[iteration] = inter_reduce;
+            if (iteration % SOLUTION_REPORT_INTERVAL == 0 && iteration != 0)
             {
-                Utility::outputIntermediateSolution(iteration, *problemData);
+                std::cout << "Iteration " << iteration << ": " << intermediate[iteration - 1] << " cells alive." << std::endl;
             }
         }
-        else
-        {
-            // TODO: receive upper ghost layer from process with rank rank-1
-            MPI_Recv(*problemData->readGrid + (st_row - 1) * GRID_SIZE, GRID_SIZE, MPI_FLOAT, rank - 1, 0, MPI_COMM_WORLD, nullptr);
-            // TODO: send lowest row in block to the process with rank (rank+1)%size
-            MPI_Send(*problemData->readGrid + (end_row - 1) * GRID_SIZE, GRID_SIZE, MPI_FLOAT, (rank + 1) % size, 0, MPI_COMM_WORLD);
-            // TODO: receive lower ghost layer from process with rank (rank+1)%size
-            MPI_Recv(*problemData->readGrid + (end_row % GRID_SIZE) * GRID_SIZE, GRID_SIZE, MPI_FLOAT, (rank + 1) % size, 1, MPI_COMM_WORLD, nullptr);
-            // TODO: send uppermost row in block to the process with rank rank-1
-            MPI_Send(*problemData->readGrid + st_row * GRID_SIZE, GRID_SIZE, MPI_FLOAT, rank - 1, 1, MPI_COMM_WORLD);
-        }
-
-        evolve(*problemData);
-        problemData->swapGrids();
     }
-    Utility::outputSolution(*problemData);
+
+    // Outside the loop, finally output
+    if (rank == 0)
+    {
+        std::cout << "Iteration " << NUM_SIMULATION_STEPS << ": " << intermediate[NUM_SIMULATION_STEPS - 1] << " cells alive." << std::endl;
+        std::cout << "DONE" << std::endl;
+    }
 
     delete problemData;
+    delete intermediate;
 
     MPI_Finalize();
     return 0;
